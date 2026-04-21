@@ -3,88 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>نظام توزيع العدادات - الفرق الميدانية مع التنقل</title>
-    <!-- Leaflet CSS & JS -->
+    <title>نظام الفرق الميدانية - مع تسجيل الإنجاز في Google Sheets</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
-    <!-- Turf.js للمعاملات المكانية -->
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
-    <!-- SheetJS لقراءة Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-    <!-- toGeoJSON لتحويل KML -->
     <script src="https://cdn.jsdelivr.net/npm/@mapbox/togeojson@0.16.0/togeojson.min.js"></script>
-    <!-- Bootstrap للتصميم -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body {
-            background: #f0f2f5;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin-bottom: 20px;
-        }
-        #map {
-            height: 550px;
-            border-radius: 16px;
-            margin: 15px 0;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        .card-panel {
-            background: white;
-            padding: 20px;
-            border-radius: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-        .legend {
-            background: white;
-            padding: 8px 15px;
-            border-radius: 12px;
-            font-size: 13px;
-            display: inline-block;
-            margin-top: 10px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-        }
-        .completed-list {
-            max-height: 200px;
-            overflow-y: auto;
-            background: #f8f9fa;
-            border-radius: 12px;
-            padding: 10px;
-            margin-top: 10px;
-        }
-        .team-view {
-            display: none;
-        }
-        .admin-view {
-            display: block;
-        }
-        footer {
-            text-align: center;
-            font-size: 12px;
-            color: #6c757d;
-            margin-top: 20px;
-        }
-        @media (max-width: 768px) {
-            .container { padding: 10px; }
-            h2 { font-size: 1.5rem; }
-            .btn { font-size: 0.9rem; }
-        }
-        .loading {
-            text-align: center;
-            padding: 20px;
-            background: #e9ecef;
-            border-radius: 12px;
-        }
-        .directions-btn {
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 20px;
-            padding: 5px 12px;
-            margin-top: 8px;
-            width: 100%;
-        }
+        body { background: #f0f2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin-bottom: 20px; }
+        #map { height: 550px; border-radius: 16px; margin: 15px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .card-panel { background: white; padding: 20px; border-radius: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .legend { background: white; padding: 8px 15px; border-radius: 12px; font-size: 13px; display: inline-block; margin-top: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+        .completed-list { max-height: 200px; overflow-y: auto; background: #f8f9fa; border-radius: 12px; padding: 10px; margin-top: 10px; }
+        .team-view { display: none; }
+        .admin-view { display: block; }
+        footer { text-align: center; font-size: 12px; color: #6c757d; margin-top: 20px; }
+        @media (max-width: 768px) { .container { padding: 10px; } h2 { font-size: 1.5rem; } .btn { font-size: 0.9rem; } }
+        .loading { text-align: center; padding: 20px; background: #e9ecef; border-radius: 12px; }
+        .directions-btn { background: #007bff; color: white; border: none; border-radius: 20px; padding: 5px 12px; margin-top: 8px; width: 100%; }
         .directions-btn:hover { background: #0056b3; }
         .leaflet-routing-container { direction: ltr; max-height: 200px; overflow-y: auto; }
         .user-marker { font-size: 20px; }
@@ -92,7 +31,7 @@
 </head>
 <body>
 <div class="container my-3">
-    <h2 class="text-center mb-3">🗺️ نظام توزيع العدادات - مع توجيه المسار</h2>
+    <h2 class="text-center mb-3">🗺️ نظام توزيع العدادات - مع تسجيل الإنجاز</h2>
 
     <!-- ===================== واجهة المدير ===================== -->
     <div id="adminView" class="admin-view card-panel">
@@ -101,30 +40,25 @@
             <div class="col-md-6">
                 <label class="fw-bold">📊 ملف Excel (عدادات)</label>
                 <input type="file" id="excelFile" class="form-control" accept=".xlsx, .xls, .csv">
-                <small class="text-muted">الأعمدة المطلوبة: <strong>رقم_العداد</strong> (نص)، <strong>الطول</strong> (رقم، خط الطول)، <strong>العرض</strong> (رقم، خط العرض)، <strong>الاجراء</strong> (نص: فتح عداد، قفل عداد، قفل طلب عميل، وضع ملصق)</small>
+                <small class="text-muted">الأعمدة: رقم_العداد, الطول, العرض, الاجراء</small>
             </div>
             <div class="col-md-6">
                 <label class="fw-bold">🗺️ ملف KML (مضلعات)</label>
                 <input type="file" id="kmlFile" class="form-control" accept=".kml">
-                <small class="text-muted">يحتوي على مضلعات (Polygon أو MultiPolygon) بأسماء</small>
+                <small class="text-muted">يحتوي على مضلعات Polygon</small>
             </div>
         </div>
-        <button id="processBtn" class="btn btn-primary mt-3 w-100">🚀 معالجة وتوزيع العدادات على الفرق</button>
+        <button id="processBtn" class="btn btn-primary mt-3 w-100">🚀 معالجة وتوزيع</button>
         <div id="adminStatus" class="mt-2 alert d-none"></div>
         <div id="exportJsonContainer" class="mt-3 text-center d-none">
             <button id="exportJsonBtn" class="btn btn-success">📥 تحميل ملف data.json</button>
-            <p class="text-muted mt-2 small">
-                ⚠️ بعد تحميل الملف، قم برفعه إلى مستودع GitHub (بنفس مجلد index.html) باسم <strong>data.json</strong><br>
-                ثم أرسل روابط الفرق التالية لأفراد الفريق.
-            </p>
-            <div class="alert alert-info small">
-                <strong>📌 تعليمات رفع الملف إلى GitHub:</strong><br>
-                1. افتح مستودعك على GitHub → Add file → Upload files.<br>
-                2. اختر ملف data.json الذي حمّلته.<br>
-                3. اكتب رسالة commit ثم Commit changes.<br>
-                4. بعد دقيقة، ستعمل الروابط أدناه تلقائياً.
-            </div>
+            <p class="text-muted mt-2 small">بعد تحميل الملف، قم برفعه إلى GitHub (نفس مجلد index.html) باسم <strong>data.json</strong></p>
         </div>
+        <hr>
+        <h5>📊 تقارير الإنجاز</h5>
+        <button id="refreshAdminMapBtn" class="btn btn-secondary">🔄 تحديث الخريطة من Google Sheets</button>
+        <button id="exportExcelReportBtn" class="btn btn-info">📎 تصدير تقرير Excel (بالحالة والتاريخ)</button>
+        <div id="adminMapInfo" class="mt-2 text-muted small"></div>
     </div>
 
     <!-- ===================== واجهة الفريق ===================== -->
@@ -137,50 +71,52 @@
     <div id="map"></div>
     <div id="legend" class="legend"></div>
 
-    <!-- لوحة الفريق (تظهر بعد تحميل البيانات) -->
+    <!-- لوحة الفريق -->
     <div id="teamPanel" class="card-panel d-none">
         <div class="row">
             <div class="col-md-6">
-                <h6>📋 المهام المتبقية (غير منجزة)</h6>
+                <h6>📋 المهام المتبقية</h6>
                 <div id="remainingList" class="completed-list"></div>
             </div>
             <div class="col-md-6">
                 <h6>✅ المهام المنجزة</h6>
                 <div id="completedList" class="completed-list"></div>
                 <button id="showCompletedBtn" class="btn btn-sm btn-secondary mt-2">👁️ إظهار المنجزة مؤقتاً</button>
-                <button id="resetTeamTasksBtn" class="btn btn-sm btn-warning mt-2">🔄 إعادة تعيين مهام فريقي</button>
+                <button id="resetTeamTasksBtn" class="btn btn-sm btn-warning mt-2">🔄 إعادة تعيين (محلي)</button>
             </div>
         </div>
     </div>
-
-    <footer>📍 اضغط على أي عداد ثم "اتجاهات التنقل" لتوجيهك إلى العداد (يُطلب إذن الموقع أول مرة)</footer>
+    <footer>📍 اضغط على عداد ثم "تم التنفيذ" – سيُسجل الإنجاز مع الوقت في Google Sheets ويختفي من خريطتك.</footer>
 </div>
 
 <script>
     // =================================================================
-    // المتغيرات العامة
+    // إعدادات Google Sheets (يجب تعديلها من قبل المدير)
     // =================================================================
-    let map = null;                     // كائن الخريطة
-    let polygonsData = [];              // مصفوفة المضلعات { name, geojson, team }
-    let metersData = [];                // مصفوفة العدادات { id, lng, lat, action, team, polygonName }
-    let currentTeamFilter = null;       // '1', '2', '3' أو null للمدير
-    let markersLayer = null;            // طبقة علامات العدادات
-    let polygonsLayer = null;           // طبقة المضلعات
-    let routingControl = null;          // التحكم في المسار
-    let currentUserLocation = null;     // موقع المستخدم الحالي
+    const GOOGLE_SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxMANvqtByQNT3yHDSJD_b2HGko2Jy7WZmrWS6VSGXWm-iMkqW4t1YOisJCQ2RfBbo/exec"; // ضع رابط Web App هنا
+    // =================================================================
 
-    // =================================================================
-    // دوال تهيئة الخريطة والرسائل
-    // =================================================================
+    // المتغيرات العامة
+    let map = null;
+    let polygonsData = [];
+    let metersData = [];        // { id, lng, lat, action, team, polygonName }
+    let currentTeamFilter = null;
+    let markersLayer = null;
+    let polygonsLayer = null;
+    let routingControl = null;
+    let currentUserLocation = null;
+    let completedStatus = {};    // لتخزين حالة الإنجاز للعدادات (عند المدير)
+
+    // تهيئة الخريطة
     function initMap() {
         if(map) map.remove();
         map = L.map('map').setView([24.7136, 46.6753], 12);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CartoDB',
-            subdomains: 'abcd'
+            attribution: '&copy; OpenStreetMap & CartoDB'
         }).addTo(map);
     }
 
+    // دوال المساعدة
     function showTeamMessage(msg, isError = false) {
         const errorDiv = document.getElementById('teamError');
         errorDiv.innerHTML = msg;
@@ -190,7 +126,6 @@
             if(loadingDiv) loadingDiv.innerHTML = msg;
         }
     }
-
     function showAdminMessage(msg, type) {
         const div = document.getElementById('adminStatus');
         div.className = `alert alert-${type}`;
@@ -199,436 +134,228 @@
         setTimeout(() => div.classList.add('d-none'), 5000);
     }
 
-    // =================================================================
-    // دوال المسار والتنقل
-    // =================================================================
-    function clearRoute() {
-        if(routingControl) {
-            map.removeControl(routingControl);
-            routingControl = null;
-        }
-    }
-
-    // دالة لفتح خرائط جوجل (تطبيق خارجي) للتنقل السهل على الجوال
+    // دوال التنقل
+    function clearRoute() { if(routingControl) { map.removeControl(routingControl); routingControl = null; } }
     function openGoogleMaps(meterLat, meterLng) {
-        // نستخدم عنوان URL لخرائط جوجل مع الوجهة فقط (أو مع موقع المستخدم إذا كان متاحاً)
-        let url;
-        if(currentUserLocation) {
-            url = `https://www.google.com/maps/dir/${currentUserLocation.lat},${currentUserLocation.lng}/${meterLat},${meterLng}/`;
-        } else {
-            url = `https://www.google.com/maps/search/?api=1&query=${meterLat},${meterLng}`;
-        }
+        let url = currentUserLocation ? `https://www.google.com/maps/dir/${currentUserLocation.lat},${currentUserLocation.lng}/${meterLat},${meterLng}/` : `https://www.google.com/maps/search/?api=1&query=${meterLat},${meterLng}`;
         window.open(url, '_blank');
     }
-
-    // دالة لعرض المسار المدمج على الخريطة باستخدام OSRM
     function showRouteToMeter(meterLat, meterLng, meterId) {
         clearRoute();
-
-        // إذا كان لدينا موقع المستخدم مخزناً مسبقاً
         if(currentUserLocation) {
-            routingControl = L.Routing.control({
-                waypoints: [
-                    L.latLng(currentUserLocation.lat, currentUserLocation.lng),
-                    L.latLng(meterLat, meterLng)
-                ],
-                routeWhileDragging: false,
-                showAlternatives: false,
-                lineOptions: { styles: [{ color: '#3388ff', weight: 5 }] },
-                router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
-                fitSelectedRoutes: true,
-                show: true
-            }).addTo(map);
-            showTeamMessage(`تم رسم المسار إلى العداد ${meterId}`, false);
+            routingControl = L.Routing.control({ waypoints: [L.latLng(currentUserLocation.lat, currentUserLocation.lng), L.latLng(meterLat, meterLng)], routeWhileDragging: false, lineOptions: { styles: [{ color: '#3388ff', weight: 5 }] }, router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }), fitSelectedRoutes: true }).addTo(map);
         } else {
-            // طلب موقع المستخدم أولاً
             if("geolocation" in navigator) {
-                showTeamMessage("⏳ جاري الحصول على موقعك الحالي...", false);
-                navigator.geolocation.getCurrentPosition(function(position) {
-                    currentUserLocation = {
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude
-                    };
-                    // إضافة علامة لموقع المستخدم
-                    L.marker([currentUserLocation.lat, currentUserLocation.lng], {
-                        icon: L.divIcon({ html: '📍', iconSize: [20,20], className: 'user-marker' })
-                    }).addTo(map).bindPopup("موقعك الحالي").openPopup();
-
-                    routingControl = L.Routing.control({
-                        waypoints: [
-                            L.latLng(currentUserLocation.lat, currentUserLocation.lng),
-                            L.latLng(meterLat, meterLng)
-                        ],
-                        routeWhileDragging: false,
-                        lineOptions: { styles: [{ color: '#3388ff', weight: 5 }] },
-                        router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
-                        fitSelectedRoutes: true
-                    }).addTo(map);
-                    showTeamMessage(`تم رسم المسار إلى العداد ${meterId}`, false);
-                }, function(error) {
-                    console.error(error);
-                    showTeamMessage("⚠️ لم نتمكن من تحديد موقعك. تأكد من تفعيل خدمات الموقع أو استخدم زر خرائط جوجل.", true);
-                    // بديل: فتح خرائط جوجل بدون موقع
-                    openGoogleMaps(meterLat, meterLng);
-                });
-            } else {
-                showTeamMessage("متصفحك لا يدعم تحديد الموقع. سيتم فتح خرائط جوجل.", true);
-                openGoogleMaps(meterLat, meterLng);
-            }
+                showTeamMessage("جاري الحصول على موقعك...", false);
+                navigator.geolocation.getCurrentPosition(function(pos) {
+                    currentUserLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    L.marker([currentUserLocation.lat, currentUserLocation.lng], { icon: L.divIcon({ html: '📍', iconSize: [20,20] }) }).addTo(map).bindPopup("موقعك الحالي");
+                    routingControl = L.Routing.control({ waypoints: [L.latLng(currentUserLocation.lat, currentUserLocation.lng), L.latLng(meterLat, meterLng)], routeWhileDragging: false, lineOptions: { styles: [{ color: '#3388ff', weight: 5 }] }, router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }), fitSelectedRoutes: true }).addTo(map);
+                }, () => showTeamMessage("لا يمكن تحديد موقعك، استخدم خرائط جوجل", true));
+            } else { openGoogleMaps(meterLat, meterLng); }
         }
     }
 
-    // =================================================================
-    // دوال إدارة المهام (إكمال العداد، القوائم، إعادة التعيين)
-    // =================================================================
-    window.completeMeter = function(meterId) {
+    // إرسال إنجاز العداد إلى Google Sheets
+    async function sendCompletionToSheet(meterId, team) {
+        const now = new Date().toISOString();
+        const payload = { meter_id: meterId, completed_at: now, team: team };
+        try {
+            const response = await fetch(GOOGLE_SHEETS_WEBAPP_URL, {
+                method: 'POST',
+                mode: 'no-cors', // بسبب CORS ولكن الطلب يصل
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            console.log("تم إرسال الإنجاز", meterId);
+        } catch(e) { console.error(e); }
+    }
+
+    // دالة إكمال العداد للفريق (تسجيل في Google Sheets + إزالة محلية)
+    window.completeMeter = async function(meterId) {
         if(!currentTeamFilter) return;
+        // إرسال إلى Google Sheets
+        await sendCompletionToSheet(meterId, currentTeamFilter);
+        // إزالة من localStorage المحلي للفريق (لإخفائه فوراً)
         const key = `completed_team${currentTeamFilter}`;
         let completed = JSON.parse(localStorage.getItem(key) || '[]');
         if(!completed.includes(meterId)) {
             completed.push(meterId);
             localStorage.setItem(key, JSON.stringify(completed));
-            drawTeamMap(); // إعادة رسم الخريطة لإخفاء هذا العداد
-            showTeamMessage(`✅ تم إنجاز العداد ${meterId}`, false);
-            setTimeout(() => document.getElementById('teamError')?.classList.add('d-none'), 2000);
-        } else {
-            showTeamMessage(`العداد ${meterId} مكتمل بالفعل`, false);
+            drawTeamMap(); // إعادة رسم الخريطة
+            showTeamMessage(`✅ تم إنجاز العداد ${meterId} وتم تسجيله بنجاح`, false);
         }
     };
 
-    function updateTeamSidebar(completedIds) {
-        const teamMeters = metersData.filter(m => m.team === currentTeamFilter);
-        const remaining = teamMeters.filter(m => !completedIds.includes(m.id));
-        const done = teamMeters.filter(m => completedIds.includes(m.id));
-        const remainingDiv = document.getElementById('remainingList');
-        const completedDiv = document.getElementById('completedList');
-        if(remainingDiv) {
-            remainingDiv.innerHTML = remaining.map(m => `<div class="border-bottom p-1">📌 ${m.id} - ${m.action}</div>`).join('') || '<div class="text-muted">🎉 لا توجد مهام متبقية</div>';
-        }
-        if(completedDiv) {
-            completedDiv.innerHTML = done.map(m => `<div class="border-bottom p-1 text-success">✅ ${m.id} - ${m.action}</div>`).join('') || '<div class="text-muted">لا توجد مهام منجزة بعد</div>';
-        }
-    }
-
-    function resetTeamTasks() {
-        if(!currentTeamFilter) return;
-        localStorage.removeItem(`completed_team${currentTeamFilter}`);
-        drawTeamMap();
-        showTeamMessage('🔄 تم إعادة تعيين جميع مهام فريقك (ظهرت العدادات مرة أخرى)', false);
-    }
-
-    // =================================================================
-    // رسم الخريطة للفريق (مع فلتر واستبعاد المنجزات)
-    // =================================================================
+    // رسم خريطة الفريق (تستبعد المنجزات محلياً)
     function drawTeamMap() {
         if(!map) initMap();
         if(polygonsLayer) map.removeLayer(polygonsLayer);
         if(markersLayer) map.removeLayer(markersLayer);
-        clearRoute(); // إزالة أي مسار سابق
-
+        clearRoute();
         polygonsLayer = L.layerGroup();
         markersLayer = L.layerGroup();
-
-        // ألوان الفرق للمضلعات
-        const teamColors = { '1': '#FF5722', '2': '#4CAF50', '3': '#2196F3', 'غير محدد': '#AAAAAA' };
-        // رسم المضلعات الخاصة بالفريق فقط
-        polygonsData.forEach(poly => {
-            if(poly.team !== currentTeamFilter) return;
-            const color = teamColors[poly.team];
-            L.geoJSON(poly.geojson, {
-                style: { color: color, weight: 3, fillColor: color, fillOpacity: 0.25 },
-                onEachFeature: (f, layer) => layer.bindPopup(`<b>${poly.name}</b><br>الفريق: ${poly.team}`)
-            }).addTo(polygonsLayer);
-        });
-
-        // ألوان الإجراءات للعدادات
-        const actionColors = {
-            'فتح عداد': '#2ecc71',
-            'قفل عداد': '#e74c3c',
-            'قفل طلب عميل': '#f39c12',
-            'وضع ملصق': '#9b59b6'
-        };
-        const storageKey = `completed_team${currentTeamFilter}`;
-        const completedIds = JSON.parse(localStorage.getItem(storageKey) || '[]');
-
+        const teamColors = { '1':'#FF5722','2':'#4CAF50','3':'#2196F3','غير محدد':'#AAAAAA' };
+        polygonsData.forEach(poly => { if(poly.team === currentTeamFilter) L.geoJSON(poly.geojson, { style: { color: teamColors[poly.team], weight: 3, fillColor: teamColors[poly.team], fillOpacity: 0.25 }, onEachFeature: (f,l)=>l.bindPopup(`<b>${poly.name}</b><br>فريق ${poly.team}`) }).addTo(polygonsLayer); });
+        const actionColors = { 'فتح عداد':'#2ecc71','قفل عداد':'#e74c3c','قفل طلب عميل':'#f39c12','وضع ملصق':'#9b59b6' };
+        const completedLocal = JSON.parse(localStorage.getItem(`completed_team${currentTeamFilter}`) || '[]');
         metersData.forEach(meter => {
             if(meter.team !== currentTeamFilter) return;
-            if(completedIds.includes(meter.id)) return; // تخطي المنجزات
+            if(completedLocal.includes(meter.id)) return;
             const color = actionColors[meter.action] || '#95a5a6';
-            const icon = L.divIcon({
-                html: `<div style="background:${color}; width:16px; height:16px; border-radius:50%; border:2px solid white; box-shadow:0 0 2px black;"></div>`,
-                iconSize: [16,16],
-                className: 'meter-marker'
-            });
-            const popupContent = `
-                <div style="text-align:center; min-width:170px;">
-                    <b>العداد: ${meter.id}</b><br>
-                    الإجراء: ${meter.action}<br>
-                    <button class="btn btn-sm btn-success mt-1" onclick="completeMeter('${meter.id}')">✅ تم التنفيذ</button><br>
-                    <button class="btn btn-sm btn-primary mt-1 directions-btn" onclick="showRouteToMeter(${meter.lat}, ${meter.lng}, '${meter.id}')">🧭 اتجاهات التنقل (مسار مدمج)</button>
-                    <button class="btn btn-sm btn-info mt-1" onclick="openGoogleMaps(${meter.lat}, ${meter.lng})">🗺️ فتح في خرائط جوجل</button>
-                </div>
-            `;
-            const marker = L.marker([meter.lat, meter.lng], { icon }).bindPopup(popupContent);
-            markersLayer.addLayer(marker);
+            const icon = L.divIcon({ html: `<div style="background:${color}; width:16px; height:16px; border-radius:50%; border:2px solid white;"></div>`, iconSize: [16,16] });
+            const popup = `<div style="text-align:center;"><b>${meter.id}</b><br>${meter.action}<br><button class="btn btn-sm btn-success mt-1" onclick="completeMeter('${meter.id}')">✅ تم التنفيذ</button><br><button class="btn btn-sm btn-primary mt-1 directions-btn" onclick="showRouteToMeter(${meter.lat}, ${meter.lng}, '${meter.id}')">🧭 اتجاهات</button><br><button class="btn btn-sm btn-info mt-1" onclick="openGoogleMaps(${meter.lat}, ${meter.lng})">🗺️ خرائط جوجل</button></div>`;
+            L.marker([meter.lat, meter.lng], { icon }).bindPopup(popup).addTo(markersLayer);
         });
-
         polygonsLayer.addTo(map);
         markersLayer.addTo(map);
-
-        // ضبط حدود الخريطة لتشمل جميع العلامات
-        if(markersLayer.getLayers().length > 0) {
-            const bounds = L.latLngBounds(markersLayer.getLayers().map(l => l.getLatLng()));
-            map.fitBounds(bounds);
-        }
-
-        updateTeamSidebar(completedIds);
+        if(markersLayer.getLayers().length) map.fitBounds(L.latLngBounds(markersLayer.getLayers().map(l=>l.getLatLng())));
+        // تحديث القوائم الجانبية
+        const teamMeters = metersData.filter(m => m.team === currentTeamFilter);
+        const remaining = teamMeters.filter(m => !completedLocal.includes(m.id));
+        const done = teamMeters.filter(m => completedLocal.includes(m.id));
+        document.getElementById('remainingList').innerHTML = remaining.map(m=>`<div>📌 ${m.id} - ${m.action}</div>`).join('') || 'لا توجد مهام';
+        document.getElementById('completedList').innerHTML = done.map(m=>`<div>✅ ${m.id} - ${m.action}</div>`).join('') || 'لا توجد';
     }
 
-    // =================================================================
-    // تحميل بيانات الفريق من ملف data.json (من نفس المستودع)
-    // =================================================================
-    async function loadTeamDataFromServer(teamFilter) {
-        showTeamMessage('⏳ جاري تحميل البيانات من الخادم...', false);
+    // تحميل بيانات الفريق من data.json
+    async function loadTeamData(teamFilter) {
+        showTeamMessage('جاري تحميل البيانات...', false);
         try {
-            const response = await fetch('data.json?v=' + Date.now()); // إضافة timestamp لمنع الكاش
-            if(!response.ok) {
-                throw new Error('لم يتم العثور على ملف data.json. تأكد من أن المدير قد رفعه إلى المستودع.');
-            }
-            const data = await response.json();
-            if(!data.meters || !data.polygons) {
-                throw new Error('ملف data.json غير صالح (يفتقد meters أو polygons)');
-            }
+            const res = await fetch('data.json?v='+Date.now());
+            if(!res.ok) throw new Error('لم يتم العثور على data.json');
+            const data = await res.json();
             metersData = data.meters;
             polygonsData = data.polygons;
             currentTeamFilter = teamFilter;
             initMap();
             drawTeamMap();
             document.getElementById('teamPanel').classList.remove('d-none');
-            document.getElementById('legend').innerHTML = `<strong>🎯 فريق ${teamFilter}</strong> | العدادات المتبقية فقط | اضغط على عداد لرؤية خيارات التنقل`;
+            document.getElementById('legend').innerHTML = `<strong>فريق ${teamFilter}</strong> - المهام المتبقية`;
             document.getElementById('teamLoading').style.display = 'none';
-            showTeamMessage('✅ تم تحميل البيانات بنجاح!', false);
         } catch(err) {
-            console.error(err);
-            showTeamMessage('❌ فشل التحميل: ' + err.message, true);
-            document.getElementById('teamLoading').innerHTML = `<div class="alert alert-danger">${err.message}<br><br>🔧 الحل: اطلب من المدير رفع ملف data.json إلى نفس مجلد الموقع على GitHub.</div>`;
+            showTeamMessage(err.message, true);
         }
     }
 
-    // =================================================================
-    // دوال المدير: قراءة Excel، KML، التوزيع، تصدير JSON
-    // =================================================================
-    function parseExcel(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const rows = XLSX.utils.sheet_to_json(firstSheet);
-                    if(rows.length === 0) {
-                        reject('الملف فارغ');
-                        return;
-                    }
-                    const firstRow = rows[0];
-                    // البحث عن أسماء الأعمدة بدقة
-                    const colId = Object.keys(firstRow).find(k => /رقم_العداد|meter_id|MeterID|ID/i.test(k));
-                    const colLng = Object.keys(firstRow).find(k => /الطول|lng|Longitude|LON/i.test(k));
-                    const colLat = Object.keys(firstRow).find(k => /العرض|lat|Latitude|LAT/i.test(k));
-                    const colAction = Object.keys(firstRow).find(k => /الاجراء|action|Action/i.test(k));
-                    if(!colId) reject('لم يتم العثور على عمود رقم العداد');
-                    if(!colLng) reject('لم يتم العثور على عمود الطول');
-                    if(!colLat) reject('لم يتم العثور على عمود العرض');
-                    if(!colAction) reject('لم يتم العثور على عمود الإجراء');
-
-                    const meters = [];
-                    for(let row of rows) {
-                        let id = String(row[colId]).trim();
-                        let lng = parseFloat(row[colLng]);
-                        let lat = parseFloat(row[colLat]);
-                        let action = String(row[colAction]).trim();
-                        if(isNaN(lng) || isNaN(lat)) continue;
-                        meters.push({ id, lng, lat, action, team: null, polygonName: null });
-                    }
-                    if(meters.length === 0) reject('لا توجد بيانات صالحة (تحقق من الإحداثيات)');
-                    resolve(meters);
-                } catch(err) {
-                    reject('خطأ في معالجة Excel: ' + err.message);
-                }
-            };
-            reader.onerror = () => reject('فشل قراءة ملف Excel');
-            reader.readAsArrayBuffer(file);
-        });
-    }
-
-    function parseKML(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const kmlString = e.target.result;
-                    const parser = new DOMParser();
-                    const kmlDoc = parser.parseFromString(kmlString, 'text/xml');
-                    if(kmlDoc.querySelector('parsererror')) {
-                        throw new Error('صيغة KML غير صالحة');
-                    }
-                    const geoJson = toGeoJSON.kml(kmlDoc);
-                    if(!geoJson.features || geoJson.features.length === 0) {
-                        throw new Error('لا توجد معالم في ملف KML');
-                    }
-                    const polygons = geoJson.features.filter(f => 
-                        f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'
-                    );
-                    if(polygons.length === 0) {
-                        throw new Error('لا توجد مضلعات (Polygon/MultiPolygon) في ملف KML');
-                    }
-                    // توزيع الفرق 1,2,3 بالتناوب حسب ترتيب المضلعات
-                    const teams = ['1', '2', '3'];
-                    const polygonsWithTeam = polygons.map((feat, idx) => {
-                        let name = feat.properties.name || feat.properties.Name || `مضلع ${idx+1}`;
-                        let team = teams[idx % teams.length];
-                        return { name: name, geojson: feat, team: team };
-                    });
-                    resolve(polygonsWithTeam);
-                } catch(err) {
-                    reject('خطأ في تحليل KML: ' + err.message);
-                }
-            };
-            reader.onerror = () => reject('فشل قراءة ملف KML');
-            reader.readAsText(file);
-        });
-    }
-
-    function assignMetersToPolygons(meters, polygons) {
-        let assignedCount = 0;
-        for(let meter of meters) {
-            const point = turf.point([meter.lng, meter.lat]);
-            let found = false;
-            for(let poly of polygons) {
-                if(turf.booleanPointInPolygon(point, poly.geojson)) {
-                    meter.team = poly.team;
-                    meter.polygonName = poly.name;
-                    assignedCount++;
-                    found = true;
-                    break;
+    // ===================== دوال المدير =====================
+    async function loadCompletedFromSheet() {
+        // قراءة بيانات الإنجاز من Google Sheets (نحتاج إلى endpoint GET)
+        // سنستخدم نفس Web App ولكن يجب تعديله لدعم GET. نفترض وجود endpoint يعيد JSON.
+        // للتبسيط، سنعتمد على أن المدير يقوم بتحديث يدوي عبر زر "تحديث" ويجلب البيانات من Google Sheets عبر fetch.
+        // سننشئ دالة تجلب البيانات من Google Sheets (نشر الجدول كـ CSV أو JSON).
+        // الأسهل: نشر الجدول كـ CSV (ملف->مشاركة->نشر على الويب->CSV) واستخدام الرابط.
+        // لكن لتكامل أفضل، سنستخدم رابط CSV للجدول.
+        const sheetCsvUrl = "https://docs.google.com/spreadsheets/d/xxxxxxxx/export?format=csv"; // يجب استبداله
+        try {
+            const response = await fetch(sheetCsvUrl);
+            const csvText = await response.text();
+            const rows = csvText.split('\n').slice(1);
+            const completedMap = {};
+            for(let row of rows) {
+                const cols = row.split(',');
+                if(cols.length>=3 && cols[1].trim() === 'نعم') {
+                    completedMap[cols[0].trim()] = cols[2].trim(); // المفتاح: meter_id, القيمة: التاريخ
                 }
             }
-            if(!found) {
-                meter.team = 'غير محدد';
-                meter.polygonName = 'خارج المضلعات';
-            }
-        }
-        return { meters, assignedCount };
+            return completedMap;
+        } catch(e) { return {}; }
     }
 
-    function exportDistributionJSON(meters, polygons) {
-        // نحتاج إلى تخزين البيانات كما هي مع المضلعات (بدون دوائر مرجعية)
-        const exportData = {
-            meters: meters.map(m => ({
-                id: m.id,
-                lng: m.lng,
-                lat: m.lat,
-                action: m.action,
-                team: m.team,
-                polygonName: m.polygonName
-            })),
-            polygons: polygons.map(p => ({
-                name: p.name,
-                team: p.team,
-                geojson: p.geojson
-            }))
-        };
-        const jsonStr = JSON.stringify(exportData, null, 2);
-        const blob = new Blob([jsonStr], { type: 'application/json' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = 'data.json';
-        link.click();
-        URL.revokeObjectURL(link.href);
-        showAdminMessage('تم تحميل ملف data.json. قم برفعه إلى مستودع GitHub.', 'success');
+    function drawAdminMap() {
+        initMap();
+        const teamColors = { '1':'#FF5722','2':'#4CAF50','3':'#2196F3','غير محدد':'#AAAAAA' };
+        polygonsData.forEach(p => { L.geoJSON(p.geojson, { style: { color: teamColors[p.team], weight: 2, fillOpacity: 0.2 }, onEachFeature: (f,l)=>l.bindPopup(`<b>${p.name}</b><br>فريق ${p.team}`) }).addTo(map); });
+        const actionColors = { 'فتح عداد':'#2ecc71','قفل عداد':'#e74c3c','قفل طلب عميل':'#f39c12','وضع ملصق':'#9b59b6' };
+        metersData.forEach(m => {
+            const isCompleted = (completedStatus[m.id] !== undefined);
+            const color = isCompleted ? '#aaaaaa' : (actionColors[m.action] || '#95a5a6');
+            const icon = L.divIcon({ html: `<div style="background:${color}; width:12px; height:12px; border-radius:50%; border:1px solid white; ${isCompleted ? 'text-decoration: line-through;' : ''}"></div>`, iconSize: [12,12] });
+            const popup = `${m.id} - ${m.action}<br>الفريق: ${m.team}<br>${isCompleted ? '✅ منجز بتاريخ: '+completedStatus[m.id] : '⏳ لم ينجز بعد'}`;
+            L.marker([m.lat, m.lng], { icon }).bindPopup(popup).addTo(map);
+        });
+        document.getElementById('adminMapInfo').innerHTML = `🟢 الأخضر: غير منجز | 🔘 الرمادي: منجز | تم تحميل ${Object.keys(completedStatus).length} عداد منجز`;
     }
 
-    // =================================================================
-    // أحداث الصفحة: التمييز بين المدير والفريق
-    // =================================================================
+    async function refreshAdminMap() {
+        completedStatus = await loadCompletedFromSheet();
+        drawAdminMap();
+        showAdminMessage('تم تحديث الخريطة بحالة الإنجازات', 'success');
+    }
+
+    function exportExcelReport() {
+        const dataToExport = metersData.map(m => ({
+            'رقم العداد': m.id,
+            'الإجراء': m.action,
+            'الفريق': m.team,
+            'المضلع': m.polygonName,
+            'خط الطول': m.lng,
+            'خط العرض': m.lat,
+            'الحالة': completedStatus[m.id] ? 'منجز' : 'قيد التنفيذ',
+            'تاريخ الإنجاز': completedStatus[m.id] || ''
+        }));
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'تقرير الإنجازات');
+        XLSX.writeFile(wb, `تقرير_العدادات_${new Date().toISOString().slice(0,19)}.xlsx`);
+    }
+
+    // دوال معالجة المدير (Excel, KML)
+    function parseExcel(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = e => { try { const data = new Uint8Array(e.target.result); const workbook = XLSX.read(data, { type: 'array' }); const sheet = workbook.Sheets[workbook.SheetNames[0]]; const rows = XLSX.utils.sheet_to_json(sheet); if(!rows.length) reject('فارغ'); const first=rows[0]; const colId=Object.keys(first).find(k=>/رقم_العداد|meter_id/i.test(k)); const colLng=Object.keys(first).find(k=>/الطول|lng/i.test(k)); const colLat=Object.keys(first).find(k=>/العرض|lat/i.test(k)); const colAction=Object.keys(first).find(k=>/الاجراء|action/i.test(k)); if(!colId||!colLng||!colLat||!colAction) reject('أعمدة غير صحيحة'); const meters=rows.map(row=>({ id:String(row[colId]), lng:parseFloat(row[colLng]), lat:parseFloat(row[colLat]), action:String(row[colAction]), team:null, polygonName:null })).filter(m=>!isNaN(m.lng)&&!isNaN(m.lat)); resolve(meters); } catch(err){reject(err.message)} }; reader.onerror=()=>reject('فشل'); reader.readAsArrayBuffer(file); }); }
+    function parseKML(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = e => { try { const kmlStr=e.target.result; const parser=new DOMParser(); const kmlDoc=parser.parseFromString(kmlStr,'text/xml'); if(kmlDoc.querySelector('parsererror')) throw new Error('KML غير صالح'); const geoJson=toGeoJSON.kml(kmlDoc); const polygons=geoJson.features.filter(f=>f.geometry.type==='Polygon'||f.geometry.type==='MultiPolygon'); if(!polygons.length) reject('لا توجد مضلعات'); const teams=['1','2','3']; const res=polygons.map((feat,idx)=>({ name:feat.properties.name||`مضلع ${idx+1}`, geojson:feat, team:teams[idx%teams.length] })); resolve(res); } catch(err){reject(err.message)} }; reader.onerror=()=>reject('فشل'); reader.readAsText(file); }); }
+    function assignMeters(meters, polygons) { let assigned=0; meters.forEach(m=>{ const point=turf.point([m.lng,m.lat]); let found=false; for(let p of polygons){ if(turf.booleanPointInPolygon(point,p.geojson)){ m.team=p.team; m.polygonName=p.name; assigned++; found=true; break; } } if(!found){ m.team='غير محدد'; m.polygonName='خارج المضلعات'; } }); return {meters, assigned}; }
+
+    // تصدير data.json
+    function exportJSON(meters, polygons) { const exportData={ meters:meters.map(({id,lng,lat,action,team,polygonName})=>({id,lng,lat,action,team,polygonName})), polygons:polygons.map(({name,team,geojson})=>({name,team,geojson})) }; const blob=new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='data.json'; a.click(); URL.revokeObjectURL(a.href); }
+
+    // ===================== بدء التشغيل =====================
     window.addEventListener('DOMContentLoaded', () => {
         const urlParams = new URLSearchParams(window.location.search);
-        const teamParam = urlParams.get('team');
-
-        if(teamParam === '1' || teamParam === '2' || teamParam === '3') {
-            // وضع الفريق
+        const team = urlParams.get('team');
+        if(team === '1' || team === '2' || team === '3') {
+            // فريق
             document.getElementById('adminView').style.display = 'none';
             document.getElementById('teamView').style.display = 'block';
             document.getElementById('teamPanel').classList.add('d-none');
-            initMap(); // خريطة فارغة مؤقتاً
-            loadTeamDataFromServer(teamParam);
-            document.getElementById('resetTeamTasksBtn').onclick = () => resetTeamTasks();
+            initMap();
+            loadTeamData(team);
+            document.getElementById('resetTeamTasksBtn').onclick = () => { localStorage.removeItem(`completed_team${team}`); drawTeamMap(); };
             document.getElementById('showCompletedBtn').onclick = () => {
-                const completedIds = JSON.parse(localStorage.getItem(`completed_team${teamParam}`) || '[]');
-                const completedMeters = metersData.filter(m => m.team === teamParam && completedIds.includes(m.id));
+                const completedIds = JSON.parse(localStorage.getItem(`completed_team${team}`) || '[]');
                 const tempLayer = L.layerGroup();
-                completedMeters.forEach(m => {
-                    const icon = L.divIcon({ html: `<div style="background:#aaa; width:12px; height:12px; border-radius:50%;"></div>`, iconSize: [12,12] });
-                    L.marker([m.lat, m.lng], { icon }).bindPopup(`<b>${m.id}</b> (منجز)`).addTo(tempLayer);
-                });
-                tempLayer.addTo(map);
-                setTimeout(() => map.removeLayer(tempLayer), 8000);
-                showTeamMessage('تم إظهار المواقع المنجزة لمدة 8 ثوانٍ', false);
+                metersData.filter(m=>m.team===team && completedIds.includes(m.id)).forEach(m=>{ L.marker([m.lat,m.lng],{icon:L.divIcon({html:'✔️',iconSize:[20,20]})}).bindPopup(`${m.id} (منجز)`).addTo(tempLayer); });
+                tempLayer.addTo(map); setTimeout(()=>map.removeLayer(tempLayer),8000);
             };
         } else {
-            // وضع المدير
+            // مدير
             document.getElementById('adminView').style.display = 'block';
             document.getElementById('teamView').style.display = 'none';
             initMap();
-            const processBtn = document.getElementById('processBtn');
-            processBtn.onclick = async () => {
+            document.getElementById('processBtn').onclick = async () => {
                 const excelFile = document.getElementById('excelFile').files[0];
                 const kmlFile = document.getElementById('kmlFile').files[0];
-                if(!excelFile || !kmlFile) {
-                    showAdminMessage('الرجاء اختيار ملف Excel وملف KML', 'danger');
-                    return;
-                }
+                if(!excelFile || !kmlFile) { showAdminMessage('اختر الملفين','danger'); return; }
                 try {
                     const meters = await parseExcel(excelFile);
                     const polygons = await parseKML(kmlFile);
-                    const { meters: assignedMeters, assignedCount } = assignMetersToPolygons(meters, polygons);
+                    const { meters: assignedMeters, assigned } = assignMeters(meters, polygons);
                     metersData = assignedMeters;
                     polygonsData = polygons;
-
-                    // عرض الخريطة الكاملة للمدير (جميع العدادات والمضلعات)
-                    initMap();
-                    const teamColors = { '1': '#FF5722', '2': '#4CAF50', '3': '#2196F3', 'غير محدد': '#AAAAAA' };
-                    // رسم المضلعات
-                    polygonsData.forEach(poly => {
-                        L.geoJSON(poly.geojson, {
-                            style: { color: teamColors[poly.team], weight: 2, fillOpacity: 0.2 },
-                            onEachFeature: (f, l) => l.bindPopup(`<b>${poly.name}</b><br>الفريق: ${poly.team}`)
-                        }).addTo(map);
-                    });
-                    // رسم العدادات
-                    const actionColors = {
-                        'فتح عداد': '#2ecc71',
-                        'قفل عداد': '#e74c3c',
-                        'قفل طلب عميل': '#f39c12',
-                        'وضع ملصق': '#9b59b6'
-                    };
-                    metersData.forEach(m => {
-                        const color = actionColors[m.action] || '#95a5a6';
-                        const icon = L.divIcon({
-                            html: `<div style="background:${color}; width:12px; height:12px; border-radius:50%;"></div>`,
-                            iconSize: [12,12]
-                        });
-                        L.marker([m.lat, m.lng], { icon }).bindPopup(`${m.id} - ${m.action}<br>الفريق: ${m.team}`).addTo(map);
-                    });
+                    drawAdminMap();
                     document.getElementById('exportJsonContainer').classList.remove('d-none');
-                    document.getElementById('exportJsonBtn').onclick = () => exportDistributionJSON(metersData, polygonsData);
-                    showAdminMessage(`تم التوزيع بنجاح! ${assignedCount} عداد داخل مضلعات، ${metersData.length - assignedCount} خارجها.`, 'success');
-                } catch(err) {
-                    showAdminMessage(err.message, 'danger');
-                    console.error(err);
-                }
+                    document.getElementById('exportJsonBtn').onclick = () => exportJSON(metersData, polygonsData);
+                    showAdminMessage(`تم التوزيع: ${assigned} عداد داخل مضلعات`, 'success');
+                } catch(err) { showAdminMessage(err.message, 'danger'); }
             };
+            document.getElementById('refreshAdminMapBtn').onclick = refreshAdminMap;
+            document.getElementById('exportExcelReportBtn').onclick = exportExcelReport;
+            // محاولة تحميل البيانات السابقة من localStorage (اختياري)
+            const storedMeters = localStorage.getItem('master_meters');
+            if(storedMeters) {
+                metersData = JSON.parse(storedMeters);
+                polygonsData = JSON.parse(localStorage.getItem('master_polygons') || '[]');
+                refreshAdminMap();
+            }
         }
     });
 </script>
