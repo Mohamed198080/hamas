@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>نظام الفرق الميدانية - مع تسجيل الإنجاز في Google Sheets</title>
+    <title>نظام الفرق الميدانية - تسجيل الإنجاز الدائم</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -31,9 +31,9 @@
 </head>
 <body>
 <div class="container my-3">
-    <h2 class="text-center mb-3">🗺️ نظام توزيع العدادات - مع تسجيل الإنجاز</h2>
+    <h2 class="text-center mb-3">🗺️ نظام توزيع العدادات - تسجيل الإنجاز الدائم</h2>
 
-    <!-- ===================== واجهة المدير ===================== -->
+    <!-- واجهة المدير -->
     <div id="adminView" class="admin-view card-panel">
         <h5>📂 رفع الملفات (المدير فقط)</h5>
         <div class="row">
@@ -61,17 +61,17 @@
         <div id="adminMapInfo" class="mt-2 text-muted small"></div>
     </div>
 
-    <!-- ===================== واجهة الفريق ===================== -->
+    <!-- واجهة الفريق -->
     <div id="teamView" class="team-view">
         <div id="teamLoading" class="loading">⏳ جاري تحميل بيانات فريقك...</div>
         <div id="teamError" class="alert alert-danger d-none"></div>
     </div>
 
-    <!-- الخريطة المشتركة -->
+    <!-- الخريطة -->
     <div id="map"></div>
     <div id="legend" class="legend"></div>
 
-    <!-- لوحة الفريق -->
+    <!-- لوحة الفريق (بدون زر إعادة تعيين) -->
     <div id="teamPanel" class="card-panel d-none">
         <div class="row">
             <div class="col-md-6">
@@ -82,30 +82,30 @@
                 <h6>✅ المهام المنجزة</h6>
                 <div id="completedList" class="completed-list"></div>
                 <button id="showCompletedBtn" class="btn btn-sm btn-secondary mt-2">👁️ إظهار المنجزة مؤقتاً</button>
-                <button id="resetTeamTasksBtn" class="btn btn-sm btn-warning mt-2">🔄 إعادة تعيين (محلي)</button>
             </div>
         </div>
     </div>
-    <footer>📍 اضغط على عداد ثم "تم التنفيذ" – سيُسجل الإنجاز مع الوقت في Google Sheets ويختفي من خريطتك.</footer>
+    <footer>📍 اضغط على عداد ثم "تم التنفيذ" – سيُسجل الإنجاز مع الوقت ويختفي نهائياً من خريطتك.</footer>
 </div>
 
 <script>
     // =================================================================
     // إعدادات Google Sheets (يجب تعديلها من قبل المدير)
     // =================================================================
-    const GOOGLE_SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxMANvqtByQNT3yHDSJD_b2HGko2Jy7WZmrWS6VSGXWm-iMkqW4t1YOisJCQ2RfBbo/exec"; // ضع رابط Web App هنا
+    const GOOGLE_SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxIA5-MvaI2g5EMaFm1kFBDd2ARsbvy4gxMOHR0bJjkLJG-T1Udcpdx8CAA1ZoD3XLs/exec"; // استبدل بالرابط الحقيقي
+    const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXoQTQpW0EQHEmDFemMwJTZ8CCQ3v7DewOI__sr7EfleRARTPzdq13b1RExnu_-PryM5Yh44BGSo79/pub?gid=0&single=true&output=csv"; // استبدل بالرابط الحقيقي
     // =================================================================
 
     // المتغيرات العامة
     let map = null;
     let polygonsData = [];
-    let metersData = [];        // { id, lng, lat, action, team, polygonName }
+    let metersData = [];
     let currentTeamFilter = null;
     let markersLayer = null;
     let polygonsLayer = null;
     let routingControl = null;
     let currentUserLocation = null;
-    let completedStatus = {};    // لتخزين حالة الإنجاز للعدادات (عند المدير)
+    let completedMap = {};       // للمدير: { meter_id: completion_date }
 
     // تهيئة الخريطة
     function initMap() {
@@ -156,39 +156,67 @@
         }
     }
 
-    // إرسال إنجاز العداد إلى Google Sheets
+    // إرسال إنجاز العداد إلى Google Sheets (POST)
     async function sendCompletionToSheet(meterId, team) {
         const now = new Date().toISOString();
         const payload = { meter_id: meterId, completed_at: now, team: team };
         try {
-            const response = await fetch(GOOGLE_SHEETS_WEBAPP_URL, {
+            await fetch(GOOGLE_SHEETS_WEBAPP_URL, {
                 method: 'POST',
-                mode: 'no-cors', // بسبب CORS ولكن الطلب يصل
+                mode: 'no-cors',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            console.log("تم إرسال الإنجاز", meterId);
-        } catch(e) { console.error(e); }
+            return true;
+        } catch(e) {
+            console.error(e);
+            return false;
+        }
     }
 
-    // دالة إكمال العداد للفريق (تسجيل في Google Sheets + إزالة محلية)
+    // جلب حالة الإنجازات من Google Sheets (للفريق أو للمدير) عبر CSV
+    async function fetchCompletedFromSheet() {
+        try {
+            const response = await fetch(SHEET_CSV_URL + '?t=' + Date.now());
+            if(!response.ok) throw new Error('فشل تحميل CSV');
+            const csvText = await response.text();
+            const rows = csvText.split('\n').slice(1);
+            const completed = {};
+            for(let row of rows) {
+                if(row.trim() === '') continue;
+                const cols = row.split(',');
+                if(cols.length >= 3 && cols[1].trim() === 'نعم') {
+                    completed[cols[0].trim()] = cols[2].trim();
+                }
+            }
+            return completed;
+        } catch(e) {
+            console.error(e);
+            return {};
+        }
+    }
+
+    // دالة إكمال العداد للفريق (لا يمكن التراجع عنها)
     window.completeMeter = async function(meterId) {
         if(!currentTeamFilter) return;
-        // إرسال إلى Google Sheets
-        await sendCompletionToSheet(meterId, currentTeamFilter);
-        // إزالة من localStorage المحلي للفريق (لإخفائه فوراً)
-        const key = `completed_team${currentTeamFilter}`;
-        let completed = JSON.parse(localStorage.getItem(key) || '[]');
-        if(!completed.includes(meterId)) {
-            completed.push(meterId);
-            localStorage.setItem(key, JSON.stringify(completed));
-            drawTeamMap(); // إعادة رسم الخريطة
+        const success = await sendCompletionToSheet(meterId, currentTeamFilter);
+        if(success) {
+            // تحديث localStorage للفريق
+            const key = `completed_team${currentTeamFilter}`;
+            let completed = JSON.parse(localStorage.getItem(key) || '[]');
+            if(!completed.includes(meterId)) {
+                completed.push(meterId);
+                localStorage.setItem(key, JSON.stringify(completed));
+            }
+            drawTeamMap();
             showTeamMessage(`✅ تم إنجاز العداد ${meterId} وتم تسجيله بنجاح`, false);
+        } else {
+            showTeamMessage(`❌ فشل تسجيل الإنجاز، حاول مرة أخرى`, true);
         }
     };
 
-    // رسم خريطة الفريق (تستبعد المنجزات محلياً)
-    function drawTeamMap() {
+    // رسم خريطة الفريق (تستبعد المنجزات ولا يوجد زر إعادة تعيين)
+    async function drawTeamMap() {
         if(!map) initMap();
         if(polygonsLayer) map.removeLayer(polygonsLayer);
         if(markersLayer) map.removeLayer(markersLayer);
@@ -198,7 +226,15 @@
         const teamColors = { '1':'#FF5722','2':'#4CAF50','3':'#2196F3','غير محدد':'#AAAAAA' };
         polygonsData.forEach(poly => { if(poly.team === currentTeamFilter) L.geoJSON(poly.geojson, { style: { color: teamColors[poly.team], weight: 3, fillColor: teamColors[poly.team], fillOpacity: 0.25 }, onEachFeature: (f,l)=>l.bindPopup(`<b>${poly.name}</b><br>فريق ${poly.team}`) }).addTo(polygonsLayer); });
         const actionColors = { 'فتح عداد':'#2ecc71','قفل عداد':'#e74c3c','قفل طلب عميل':'#f39c12','وضع ملصق':'#9b59b6' };
-        const completedLocal = JSON.parse(localStorage.getItem(`completed_team${currentTeamFilter}`) || '[]');
+        // جلب المنجزات المحلية (أو من السحاب إذا أردنا التحديث)
+        let completedLocal = JSON.parse(localStorage.getItem(`completed_team${currentTeamFilter}`) || '[]');
+        // مزامنة مع Google Sheets (للتأكد من عدم ظهور أي عداد منجز حتى لو تم مسح localStorage)
+        const allCompleted = await fetchCompletedFromSheet();
+        const teamCompletedIds = Object.keys(allCompleted).filter(id => metersData.find(m => m.id === id && m.team === currentTeamFilter));
+        if(teamCompletedIds.length > 0) {
+            completedLocal = [...new Set([...completedLocal, ...teamCompletedIds])];
+            localStorage.setItem(`completed_team${currentTeamFilter}`, JSON.stringify(completedLocal));
+        }
         metersData.forEach(meter => {
             if(meter.team !== currentTeamFilter) return;
             if(completedLocal.includes(meter.id)) return;
@@ -209,29 +245,32 @@
         });
         polygonsLayer.addTo(map);
         markersLayer.addTo(map);
-        if(markersLayer.getLayers().length) map.fitBounds(L.latLngBounds(markersLayer.getLayers().map(l=>l.getLatLng())));
+        if(markersLayer.getLayers().length) {
+            const bounds = L.latLngBounds(markersLayer.getLayers().map(l=>l.getLatLng()));
+            map.fitBounds(bounds);
+        }
         // تحديث القوائم الجانبية
         const teamMeters = metersData.filter(m => m.team === currentTeamFilter);
         const remaining = teamMeters.filter(m => !completedLocal.includes(m.id));
         const done = teamMeters.filter(m => completedLocal.includes(m.id));
-        document.getElementById('remainingList').innerHTML = remaining.map(m=>`<div>📌 ${m.id} - ${m.action}</div>`).join('') || 'لا توجد مهام';
-        document.getElementById('completedList').innerHTML = done.map(m=>`<div>✅ ${m.id} - ${m.action}</div>`).join('') || 'لا توجد';
+        document.getElementById('remainingList').innerHTML = remaining.map(m=>`<div>📌 ${m.id} - ${m.action}</div>`).join('') || 'لا توجد مهام متبقية';
+        document.getElementById('completedList').innerHTML = done.map(m=>`<div>✅ ${m.id} - ${m.action}</div>`).join('') || 'لا توجد مهام منجزة';
     }
 
-    // تحميل بيانات الفريق من data.json
+    // تحميل بيانات الفريق من data.json ثم مزامنة الإنجازات
     async function loadTeamData(teamFilter) {
         showTeamMessage('جاري تحميل البيانات...', false);
         try {
             const res = await fetch('data.json?v='+Date.now());
-            if(!res.ok) throw new Error('لم يتم العثور على data.json');
+            if(!res.ok) throw new Error('لم يتم العثور على ملف data.json. تأكد من رفعه من قبل المدير.');
             const data = await res.json();
             metersData = data.meters;
             polygonsData = data.polygons;
             currentTeamFilter = teamFilter;
             initMap();
-            drawTeamMap();
+            await drawTeamMap(); // سيقوم بمزامنة الإنجازات من Google Sheets
             document.getElementById('teamPanel').classList.remove('d-none');
-            document.getElementById('legend').innerHTML = `<strong>فريق ${teamFilter}</strong> - المهام المتبقية`;
+            document.getElementById('legend').innerHTML = `<strong>فريق ${teamFilter}</strong> - المهام المتبقية فقط (المهام المنجزة لا تظهر)`;
             document.getElementById('teamLoading').style.display = 'none';
         } catch(err) {
             showTeamMessage(err.message, true);
@@ -239,50 +278,34 @@
     }
 
     // ===================== دوال المدير =====================
-    async function loadCompletedFromSheet() {
-        // قراءة بيانات الإنجاز من Google Sheets (نحتاج إلى endpoint GET)
-        // سنستخدم نفس Web App ولكن يجب تعديله لدعم GET. نفترض وجود endpoint يعيد JSON.
-        // للتبسيط، سنعتمد على أن المدير يقوم بتحديث يدوي عبر زر "تحديث" ويجلب البيانات من Google Sheets عبر fetch.
-        // سننشئ دالة تجلب البيانات من Google Sheets (نشر الجدول كـ CSV أو JSON).
-        // الأسهل: نشر الجدول كـ CSV (ملف->مشاركة->نشر على الويب->CSV) واستخدام الرابط.
-        // لكن لتكامل أفضل، سنستخدم رابط CSV للجدول.
-        const sheetCsvUrl = "https://docs.google.com/spreadsheets/d/xxxxxxxx/export?format=csv"; // يجب استبداله
-        try {
-            const response = await fetch(sheetCsvUrl);
-            const csvText = await response.text();
-            const rows = csvText.split('\n').slice(1);
-            const completedMap = {};
-            for(let row of rows) {
-                const cols = row.split(',');
-                if(cols.length>=3 && cols[1].trim() === 'نعم') {
-                    completedMap[cols[0].trim()] = cols[2].trim(); // المفتاح: meter_id, القيمة: التاريخ
-                }
-            }
-            return completedMap;
-        } catch(e) { return {}; }
-    }
-
+    // رسم خريطة المدير (تظهر العدادات المنجزة بلون رمادي)
     function drawAdminMap() {
         initMap();
         const teamColors = { '1':'#FF5722','2':'#4CAF50','3':'#2196F3','غير محدد':'#AAAAAA' };
-        polygonsData.forEach(p => { L.geoJSON(p.geojson, { style: { color: teamColors[p.team], weight: 2, fillOpacity: 0.2 }, onEachFeature: (f,l)=>l.bindPopup(`<b>${p.name}</b><br>فريق ${p.team}`) }).addTo(map); });
+        polygonsData.forEach(p => {
+            L.geoJSON(p.geojson, { style: { color: teamColors[p.team], weight: 2, fillOpacity: 0.2 }, onEachFeature: (f,l)=>l.bindPopup(`<b>${p.name}</b><br>فريق ${p.team}`) }).addTo(map);
+        });
         const actionColors = { 'فتح عداد':'#2ecc71','قفل عداد':'#e74c3c','قفل طلب عميل':'#f39c12','وضع ملصق':'#9b59b6' };
         metersData.forEach(m => {
-            const isCompleted = (completedStatus[m.id] !== undefined);
+            const isCompleted = (completedMap[m.id] !== undefined);
             const color = isCompleted ? '#aaaaaa' : (actionColors[m.action] || '#95a5a6');
-            const icon = L.divIcon({ html: `<div style="background:${color}; width:12px; height:12px; border-radius:50%; border:1px solid white; ${isCompleted ? 'text-decoration: line-through;' : ''}"></div>`, iconSize: [12,12] });
-            const popup = `${m.id} - ${m.action}<br>الفريق: ${m.team}<br>${isCompleted ? '✅ منجز بتاريخ: '+completedStatus[m.id] : '⏳ لم ينجز بعد'}`;
+            const icon = L.divIcon({ html: `<div style="background:${color}; width:12px; height:12px; border-radius:50%; border:1px solid white;"></div>`, iconSize: [12,12] });
+            const popup = `${m.id} - ${m.action}<br>الفريق: ${m.team}<br>${isCompleted ? '✅ منجز بتاريخ: '+completedMap[m.id] : '⏳ لم ينجز بعد'}`;
             L.marker([m.lat, m.lng], { icon }).bindPopup(popup).addTo(map);
         });
-        document.getElementById('adminMapInfo').innerHTML = `🟢 الأخضر: غير منجز | 🔘 الرمادي: منجز | تم تحميل ${Object.keys(completedStatus).length} عداد منجز`;
+        const completedCount = Object.keys(completedMap).length;
+        document.getElementById('adminMapInfo').innerHTML = `🟢 الأخضر/الملون: غير منجز | 🔘 الرمادي: منجز | تم تحميل ${completedCount} عداد منجز`;
     }
 
+    // تحديث خريطة المدير من Google Sheets
     async function refreshAdminMap() {
-        completedStatus = await loadCompletedFromSheet();
+        showAdminMessage('جاري تحديث البيانات من Google Sheets...', 'info');
+        completedMap = await fetchCompletedFromSheet();
         drawAdminMap();
-        showAdminMessage('تم تحديث الخريطة بحالة الإنجازات', 'success');
+        showAdminMessage(`تم تحديث الخريطة بنجاح. عدد المنجز: ${Object.keys(completedMap).length}`, 'success');
     }
 
+    // تصدير تقرير Excel
     function exportExcelReport() {
         const dataToExport = metersData.map(m => ({
             'رقم العداد': m.id,
@@ -291,65 +314,154 @@
             'المضلع': m.polygonName,
             'خط الطول': m.lng,
             'خط العرض': m.lat,
-            'الحالة': completedStatus[m.id] ? 'منجز' : 'قيد التنفيذ',
-            'تاريخ الإنجاز': completedStatus[m.id] || ''
+            'الحالة': completedMap[m.id] ? 'منجز' : 'قيد التنفيذ',
+            'تاريخ الإنجاز': completedMap[m.id] || ''
         }));
         const ws = XLSX.utils.json_to_sheet(dataToExport);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'تقرير الإنجازات');
         XLSX.writeFile(wb, `تقرير_العدادات_${new Date().toISOString().slice(0,19)}.xlsx`);
+        showAdminMessage('تم تصدير التقرير', 'success');
     }
 
-    // دوال معالجة المدير (Excel, KML)
-    function parseExcel(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = e => { try { const data = new Uint8Array(e.target.result); const workbook = XLSX.read(data, { type: 'array' }); const sheet = workbook.Sheets[workbook.SheetNames[0]]; const rows = XLSX.utils.sheet_to_json(sheet); if(!rows.length) reject('فارغ'); const first=rows[0]; const colId=Object.keys(first).find(k=>/رقم_العداد|meter_id/i.test(k)); const colLng=Object.keys(first).find(k=>/الطول|lng/i.test(k)); const colLat=Object.keys(first).find(k=>/العرض|lat/i.test(k)); const colAction=Object.keys(first).find(k=>/الاجراء|action/i.test(k)); if(!colId||!colLng||!colLat||!colAction) reject('أعمدة غير صحيحة'); const meters=rows.map(row=>({ id:String(row[colId]), lng:parseFloat(row[colLng]), lat:parseFloat(row[colLat]), action:String(row[colAction]), team:null, polygonName:null })).filter(m=>!isNaN(m.lng)&&!isNaN(m.lat)); resolve(meters); } catch(err){reject(err.message)} }; reader.onerror=()=>reject('فشل'); reader.readAsArrayBuffer(file); }); }
-    function parseKML(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = e => { try { const kmlStr=e.target.result; const parser=new DOMParser(); const kmlDoc=parser.parseFromString(kmlStr,'text/xml'); if(kmlDoc.querySelector('parsererror')) throw new Error('KML غير صالح'); const geoJson=toGeoJSON.kml(kmlDoc); const polygons=geoJson.features.filter(f=>f.geometry.type==='Polygon'||f.geometry.type==='MultiPolygon'); if(!polygons.length) reject('لا توجد مضلعات'); const teams=['1','2','3']; const res=polygons.map((feat,idx)=>({ name:feat.properties.name||`مضلع ${idx+1}`, geojson:feat, team:teams[idx%teams.length] })); resolve(res); } catch(err){reject(err.message)} }; reader.onerror=()=>reject('فشل'); reader.readAsText(file); }); }
-    function assignMeters(meters, polygons) { let assigned=0; meters.forEach(m=>{ const point=turf.point([m.lng,m.lat]); let found=false; for(let p of polygons){ if(turf.booleanPointInPolygon(point,p.geojson)){ m.team=p.team; m.polygonName=p.name; assigned++; found=true; break; } } if(!found){ m.team='غير محدد'; m.polygonName='خارج المضلعات'; } }); return {meters, assigned}; }
-
-    // تصدير data.json
-    function exportJSON(meters, polygons) { const exportData={ meters:meters.map(({id,lng,lat,action,team,polygonName})=>({id,lng,lat,action,team,polygonName})), polygons:polygons.map(({name,team,geojson})=>({name,team,geojson})) }; const blob=new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='data.json'; a.click(); URL.revokeObjectURL(a.href); }
+    // دوال معالجة المدير (قراءة Excel، KML، التوزيع)
+    function parseExcel(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(sheet);
+                    if(!rows.length) reject('الملف فارغ');
+                    const first = rows[0];
+                    const colId = Object.keys(first).find(k => /رقم_العداد|meter_id/i.test(k));
+                    const colLng = Object.keys(first).find(k => /الطول|lng/i.test(k));
+                    const colLat = Object.keys(first).find(k => /العرض|lat/i.test(k));
+                    const colAction = Object.keys(first).find(k => /الاجراء|action/i.test(k));
+                    if(!colId || !colLng || !colLat || !colAction) reject('أعمدة غير صحيحة');
+                    const meters = rows.map(row => ({
+                        id: String(row[colId]),
+                        lng: parseFloat(row[colLng]),
+                        lat: parseFloat(row[colLat]),
+                        action: String(row[colAction]),
+                        team: null,
+                        polygonName: null
+                    })).filter(m => !isNaN(m.lng) && !isNaN(m.lat));
+                    resolve(meters);
+                } catch(err) { reject(err.message); }
+            };
+            reader.onerror = () => reject('فشل قراءة الملف');
+            reader.readAsArrayBuffer(file);
+        });
+    }
+    function parseKML(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const kmlStr = e.target.result;
+                    const parser = new DOMParser();
+                    const kmlDoc = parser.parseFromString(kmlStr, 'text/xml');
+                    if(kmlDoc.querySelector('parsererror')) throw new Error('KML غير صالح');
+                    const geoJson = toGeoJSON.kml(kmlDoc);
+                    const polygons = geoJson.features.filter(f => f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon');
+                    if(!polygons.length) reject('لا توجد مضلعات');
+                    const teams = ['1','2','3'];
+                    const res = polygons.map((feat, idx) => ({
+                        name: feat.properties.name || `مضلع ${idx+1}`,
+                        geojson: feat,
+                        team: teams[idx % teams.length]
+                    }));
+                    resolve(res);
+                } catch(err) { reject(err.message); }
+            };
+            reader.onerror = () => reject('فشل قراءة KML');
+            reader.readAsText(file);
+        });
+    }
+    function assignMeters(meters, polygons) {
+        let assigned = 0;
+        meters.forEach(m => {
+            const point = turf.point([m.lng, m.lat]);
+            let found = false;
+            for(let p of polygons) {
+                if(turf.booleanPointInPolygon(point, p.geojson)) {
+                    m.team = p.team;
+                    m.polygonName = p.name;
+                    assigned++;
+                    found = true;
+                    break;
+                }
+            }
+            if(!found) {
+                m.team = 'غير محدد';
+                m.polygonName = 'خارج المضلعات';
+            }
+        });
+        return { meters, assigned };
+    }
+    function exportJSON(meters, polygons) {
+        const exportData = {
+            meters: meters.map(({id,lng,lat,action,team,polygonName}) => ({id,lng,lat,action,team,polygonName})),
+            polygons: polygons.map(({name,team,geojson}) => ({name,team,geojson}))
+        };
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], {type: 'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'data.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
 
     // ===================== بدء التشغيل =====================
     window.addEventListener('DOMContentLoaded', () => {
         const urlParams = new URLSearchParams(window.location.search);
         const team = urlParams.get('team');
         if(team === '1' || team === '2' || team === '3') {
-            // فريق
+            // وضع الفريق
             document.getElementById('adminView').style.display = 'none';
             document.getElementById('teamView').style.display = 'block';
             document.getElementById('teamPanel').classList.add('d-none');
             initMap();
             loadTeamData(team);
-            document.getElementById('resetTeamTasksBtn').onclick = () => { localStorage.removeItem(`completed_team${team}`); drawTeamMap(); };
-            document.getElementById('showCompletedBtn').onclick = () => {
+            // زر إظهار المنجزة مؤقتاً
+            document.getElementById('showCompletedBtn').onclick = async () => {
                 const completedIds = JSON.parse(localStorage.getItem(`completed_team${team}`) || '[]');
                 const tempLayer = L.layerGroup();
-                metersData.filter(m=>m.team===team && completedIds.includes(m.id)).forEach(m=>{ L.marker([m.lat,m.lng],{icon:L.divIcon({html:'✔️',iconSize:[20,20]})}).bindPopup(`${m.id} (منجز)`).addTo(tempLayer); });
-                tempLayer.addTo(map); setTimeout(()=>map.removeLayer(tempLayer),8000);
+                metersData.filter(m => m.team === team && completedIds.includes(m.id)).forEach(m => {
+                    L.marker([m.lat, m.lng], { icon: L.divIcon({ html: '✔️', iconSize: [20,20] }) }).bindPopup(`${m.id} (منجز)`).addTo(tempLayer);
+                });
+                tempLayer.addTo(map);
+                setTimeout(() => map.removeLayer(tempLayer), 8000);
             };
         } else {
-            // مدير
+            // وضع المدير
             document.getElementById('adminView').style.display = 'block';
             document.getElementById('teamView').style.display = 'none';
             initMap();
             document.getElementById('processBtn').onclick = async () => {
                 const excelFile = document.getElementById('excelFile').files[0];
                 const kmlFile = document.getElementById('kmlFile').files[0];
-                if(!excelFile || !kmlFile) { showAdminMessage('اختر الملفين','danger'); return; }
+                if(!excelFile || !kmlFile) { showAdminMessage('اختر الملفين', 'danger'); return; }
                 try {
                     const meters = await parseExcel(excelFile);
                     const polygons = await parseKML(kmlFile);
                     const { meters: assignedMeters, assigned } = assignMeters(meters, polygons);
                     metersData = assignedMeters;
                     polygonsData = polygons;
+                    localStorage.setItem('master_meters', JSON.stringify(metersData));
+                    localStorage.setItem('master_polygons', JSON.stringify(polygonsData));
+                    completedMap = {};
                     drawAdminMap();
                     document.getElementById('exportJsonContainer').classList.remove('d-none');
                     document.getElementById('exportJsonBtn').onclick = () => exportJSON(metersData, polygonsData);
-                    showAdminMessage(`تم التوزيع: ${assigned} عداد داخل مضلعات`, 'success');
+                    showAdminMessage(`تم التوزيع: ${assigned} عداد داخل مضلعات. يمكنك الآن تصدير data.json ورفعه إلى GitHub.`, 'success');
                 } catch(err) { showAdminMessage(err.message, 'danger'); }
             };
             document.getElementById('refreshAdminMapBtn').onclick = refreshAdminMap;
             document.getElementById('exportExcelReportBtn').onclick = exportExcelReport;
-            // محاولة تحميل البيانات السابقة من localStorage (اختياري)
             const storedMeters = localStorage.getItem('master_meters');
             if(storedMeters) {
                 metersData = JSON.parse(storedMeters);
